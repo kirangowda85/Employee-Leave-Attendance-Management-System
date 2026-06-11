@@ -1,11 +1,11 @@
 package com.management_system.management_system.service;
 
+import com.management_system.management_system.dto.AttendanceDashboardDTO;
 import com.management_system.management_system.dto.AttendanceResponseDTO;
 import com.management_system.management_system.dto.TeamAttendanceDTO;
+import com.management_system.management_system.dto.TeamAttendanceDashboardDTO;
 import com.management_system.management_system.entity.*;
-import com.management_system.management_system.repository.AttendanceEventRepository;
-import com.management_system.management_system.repository.AttendanceRepository;
-import com.management_system.management_system.repository.EmployeeRepository;
+import com.management_system.management_system.repository.*;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
@@ -20,14 +20,18 @@ import java.util.Optional;
 @Service
 public class AttendanceService {
 
+    private final LeaveRequestRepository leaveRequestRepository;
+    private final HolidayRepository holidayRepository;
     private final AttendanceRepository attendanceRepository;
     private final AttendanceEventRepository attendanceEventRepository;
     private final EmployeeRepository employeeRepository;
 
     public AttendanceService(
-            AttendanceRepository attendanceRepository,
+            LeaveRequestRepository leaveRequestRepository, HolidayRepository holidayRepository, AttendanceRepository attendanceRepository,
             AttendanceEventRepository attendanceEventRepository,
             EmployeeRepository employeeRepository) {
+        this.leaveRequestRepository = leaveRequestRepository;
+        this.holidayRepository = holidayRepository;
 
         this.attendanceRepository = attendanceRepository;
         this.attendanceEventRepository = attendanceEventRepository;
@@ -42,6 +46,22 @@ public class AttendanceService {
                 employeeRepository.findById(employeeId);
 
         if (employee.isEmpty()) {
+            return;
+        }
+        Optional<Holiday> holiday =
+                holidayRepository.findByHolidayDate(
+                        date
+                );
+
+        if (holiday.isPresent()) {
+
+            saveAttendance(
+                    employee.get(),
+                    date,
+                    0.0,
+                    AttendanceStatus.HOLIDAY
+            );
+
             return;
         }
 
@@ -130,6 +150,42 @@ public class AttendanceService {
             attendance.setAttendanceDate(
                     date
             );
+        }
+
+        attendance.setWorkingHours(
+                workingHours
+        );
+
+        attendance.setStatus(
+                status
+        );
+
+        attendanceRepository.save(
+                attendance
+        );
+    }
+    private void saveAttendance(
+            Employee employee,
+            LocalDate date,
+            Double workingHours,
+            AttendanceStatus status) {
+
+        Optional<Attendance> existing =
+                attendanceRepository
+                        .findByEmployeeIdAndAttendanceDate(
+                                employee.getId(),
+                                date
+                        );
+
+        Attendance attendance;
+
+        if (existing.isPresent()) {
+            attendance = existing.get();
+        }
+        else {
+            attendance = new Attendance();
+            attendance.setEmployee(employee);
+            attendance.setAttendanceDate(date);
         }
 
         attendance.setWorkingHours(
@@ -258,5 +314,252 @@ public class AttendanceService {
 
         return response;
 
+    }
+    public AttendanceDashboardDTO getAttendanceDashboard(
+            int year,
+            int month) {
+
+        User loggedUser = (User) SecurityContextHolder
+                .getContext()
+                .getAuthentication()
+                .getPrincipal();
+
+        Optional<Employee> employee =
+                employeeRepository.findByUserId(
+                        loggedUser.getId()
+                );
+
+        if (employee.isEmpty()) {
+            return null;
+        }
+
+        LocalDate startDate =
+                LocalDate.of(
+                        year,
+                        month,
+                        1
+                );
+
+        LocalDate endDate =
+                startDate.withDayOfMonth(
+                        startDate.lengthOfMonth()
+                );
+
+        List<Attendance> attendances =
+                attendanceRepository
+                        .findByEmployeeIdAndAttendanceDateBetween(
+                                employee.get().getId(),
+                                startDate,
+                                endDate
+                        );
+
+        int presentDays = 0;
+        int halfDays = 0;
+        int absentDays = 0;
+        int onLeaveDays = 0;
+        int holidayDays = 0;
+
+        for (Attendance attendance : attendances) {
+
+            switch (attendance.getStatus()) {
+
+                case PRESENT:
+                    presentDays++;
+                    break;
+
+                case HALF_DAY:
+                    halfDays++;
+                    break;
+
+                case ABSENT:
+                    absentDays++;
+                    break;
+
+                case ON_LEAVE:
+                    onLeaveDays++;
+                    break;
+
+                case HOLIDAY:
+                    holidayDays++;
+                    break;
+            }
+        }
+
+        int totalWorkingDays =
+                presentDays
+                        + halfDays
+                        + absentDays;
+
+        double attendancePercentage = 0;
+
+        if (totalWorkingDays > 0) {
+
+            attendancePercentage =
+                    ((presentDays + (halfDays * 0.5))
+                            / totalWorkingDays)
+                            * 100;
+        }
+
+        AttendanceDashboardDTO dto =
+                new AttendanceDashboardDTO();
+
+        dto.setPresentDays(
+                presentDays
+        );
+
+        dto.setHalfDays(
+                halfDays
+        );
+
+        dto.setAbsentDays(
+                absentDays
+        );
+
+        dto.setOnLeaveDays(
+                onLeaveDays
+        );
+
+        dto.setHolidayDays(
+                holidayDays
+        );
+
+        dto.setAttendancePercentage(
+                Math.round(attendancePercentage * 100.0) / 100.0
+        );
+
+        return dto;
+    }
+
+    public List<TeamAttendanceDashboardDTO>
+    getTeamAttendanceDashboard(
+            int year,
+            int month) {
+
+        User loggedUser = (User) SecurityContextHolder
+                .getContext()
+                .getAuthentication()
+                .getPrincipal();
+
+        Optional<Employee> manager =
+                employeeRepository.findByUserId(
+                        loggedUser.getId()
+                );
+
+        if (manager.isEmpty()) {
+            return List.of();
+        }
+
+        LocalDate startDate =
+                LocalDate.of(
+                        year,
+                        month,
+                        1
+                );
+
+        LocalDate endDate =
+                startDate.withDayOfMonth(
+                        startDate.lengthOfMonth()
+                );
+
+        List<Employee> employees =
+                employeeRepository.findByManagerId(
+                        manager.get().getId()
+                );
+
+        List<TeamAttendanceDashboardDTO> response =
+                new ArrayList<>();
+
+        for (Employee employee : employees) {
+
+            List<Attendance> attendances =
+                    attendanceRepository
+                            .findByEmployeeIdAndAttendanceDateBetween(
+                                    employee.getId(),
+                                    startDate,
+                                    endDate
+                            );
+
+            int presentDays = 0;
+            int halfDays = 0;
+            int absentDays = 0;
+            int onLeaveDays = 0;
+
+            for (Attendance attendance : attendances) {
+
+                switch (attendance.getStatus()) {
+
+                    case PRESENT:
+                        presentDays++;
+                        break;
+
+                    case HALF_DAY:
+                        halfDays++;
+                        break;
+
+                    case ABSENT:
+                        absentDays++;
+                        break;
+
+                    case ON_LEAVE:
+                        onLeaveDays++;
+                        break;
+
+                    default:
+                        break;
+                }
+            }
+
+            int totalWorkingDays =
+                    presentDays
+                            + halfDays
+                            + absentDays;
+
+            double attendancePercentage = 0;
+
+            if (totalWorkingDays > 0) {
+
+                attendancePercentage =
+                        ((presentDays + (halfDays * 0.5))
+                                / totalWorkingDays)
+                                * 100;
+            }
+
+            TeamAttendanceDashboardDTO dto =
+                    new TeamAttendanceDashboardDTO();
+
+            dto.setEmployeeCode(
+                    employee.getEmployeeCode()
+            );
+
+            dto.setEmployeeName(
+                    employee.getFirstName()
+                            + " "
+                            + employee.getLastName()
+            );
+
+            dto.setPresentDays(
+                    presentDays
+            );
+
+            dto.setHalfDays(
+                    halfDays
+            );
+
+            dto.setAbsentDays(
+                    absentDays
+            );
+
+            dto.setOnLeaveDays(
+                    onLeaveDays
+            );
+
+            dto.setAttendancePercentage(
+                    Math.round(attendancePercentage * 100.0) / 100.0
+            );
+
+            response.add(dto);
+        }
+
+        return response;
     }
 }
