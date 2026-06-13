@@ -10,104 +10,91 @@ import com.management_system.management_system.repository.RoleRepository;
 import org.apache.coyote.Response;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
 
+@Service
 public class LeavePolicyService {
 
+        private final LeavePolicyRepository leavePolicyRepository;
+        private final RoleRepository roleRepository;
 
-
-    private final LeavePolicyRepository leavePolicyRepository;
-    private final RoleRepository roleRepository;
-
-
-    public LeavePolicyService(LeavePolicyRepository leavePolicyRepository, RoleRepository roleRepository) {
-        this.leavePolicyRepository = leavePolicyRepository;
-        this.roleRepository = roleRepository;
-    }
-
-    public ResponseEntity<ApiResponse> createPolicy(
-            LeavePolicyDTO dto) {
-
-        Optional<Role> role =
-                roleRepository.findById(
-                        dto.getRoleId()
-                );
-
-        if (role.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse(
-                            404,
-                            "Role not found"
-                    ));
+        public LeavePolicyService(LeavePolicyRepository leavePolicyRepository, RoleRepository roleRepository) {
+                this.leavePolicyRepository = leavePolicyRepository;
+                this.roleRepository = roleRepository;
         }
 
-        if (leavePolicyRepository.existsByRoleIdAndYear(
-                dto.getRoleId(),
-                dto.getYear())) {
+        public ResponseEntity<ApiResponse> createPolicy(
+                        LeavePolicyDTO dto) {
 
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ApiResponse(
-                            400,
-                            "Policy already exists for this role and year"
-                    ));
+                Optional<Role> role = roleRepository.findById(
+                                dto.getRoleId());
+
+                if (role.isEmpty()) {
+                        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                                        .body(new ApiResponse(
+                                                        404,
+                                                        "Role not found"));
+                }
+
+                if (leavePolicyRepository.existsByRoleIdAndYear(
+                                dto.getRoleId(),
+                                dto.getYear())) {
+
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                        .body(new ApiResponse(
+                                                        400,
+                                                        "Policy already exists for this role and year"));
+                }
+
+                LeavePolicy leavePolicy = new LeavePolicy();
+
+                leavePolicy.setRole(role.get());
+                leavePolicy.setYear(dto.getYear());
+                leavePolicy.setSickLeave(dto.getSickLeave());
+                leavePolicy.setCasualLeave(dto.getCasualLeave());
+                leavePolicy.setEarnedLeave(dto.getEarnedLeave());
+
+                leavePolicyRepository.save(leavePolicy);
+
+                return ResponseEntity.status(HttpStatus.CREATED)
+                                .body(new ApiResponse(
+                                                201,
+                                                "Leave policy created successfully"));
         }
 
-        LeavePolicy leavePolicy = new LeavePolicy();
+        public List<LeavePolicyResponseDTO> getAllPolicies() {
 
-        leavePolicy.setRole(role.get());
-        leavePolicy.setYear(dto.getYear());
-        leavePolicy.setSickLeave(dto.getSickLeave());
-        leavePolicy.setCasualLeave(dto.getCasualLeave());
-        leavePolicy.setEarnedLeave(dto.getEarnedLeave());
+                return leavePolicyRepository.findAll()
+                                .stream()
+                                .map(policy -> {
 
-        leavePolicyRepository.save(leavePolicy);
+                                        LeavePolicyResponseDTO dto = new LeavePolicyResponseDTO();
 
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new ApiResponse(
-                        201,
-                        "Leave policy created successfully"
-                ));
-    }
+                                        dto.setId(policy.getId());
 
-    public List<LeavePolicyResponseDTO> getAllPolicies() {
+                                        dto.setRoleId(
+                                                        policy.getRole().getId());
 
-        return leavePolicyRepository.findAll()
-                .stream()
-                .map(policy -> {
+                                        dto.setRoleName(
+                                                        policy.getRole().getRoleName());
 
-                    LeavePolicyResponseDTO dto =
-                            new LeavePolicyResponseDTO();
+                                        dto.setYear(
+                                                        policy.getYear());
 
-                    dto.setId(policy.getId());
+                                        dto.setSickLeave(
+                                                        policy.getSickLeave());
 
-                    dto.setRoleId(
-                            policy.getRole().getId()
-                    );
+                                        dto.setCasualLeave(
+                                                        policy.getCasualLeave());
 
-                    dto.setRoleName(
-                            policy.getRole().getRoleName()
-                    );
+                                        dto.setEarnedLeave(
+                                                        policy.getEarnedLeave());
 
-                    dto.setYear(
-                            policy.getYear()
-                    );
-
-                    dto.setSickLeave(
-                            policy.getSickLeave()
-                    );
-
-                    dto.setCasualLeave(
-                            policy.getCasualLeave()
-                    );
-
-                    dto.setEarnedLeave(
-                            policy.getEarnedLeave()
-                    );
-
-                    return dto;
-                })
-                .toList();
-    }
+                                        return dto;
+                                })
+                                .toList();
+        }
 }

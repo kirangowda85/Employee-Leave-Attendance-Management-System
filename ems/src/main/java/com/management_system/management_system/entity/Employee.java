@@ -38,7 +38,10 @@ public class Employee {
     private Long managerId;
     @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name="user_id", referencedColumnName = "id")
-    private  User user;
+    private User user;
+
+    private Boolean isFaceRegistered = false;
+    private String faceImagePath;
 
 
 

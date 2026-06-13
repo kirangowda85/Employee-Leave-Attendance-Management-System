@@ -7,7 +7,6 @@ import java.time.LocalDate;
 import java.util.Optional;
 
 public interface HolidayRepository extends JpaRepository<Holiday, Long> {
-    Optional<Holiday> findByHolidayDate(
-            LocalDate holidayDate
-    );
+    Optional<Holiday> findByHolidaydate(
+            LocalDate holidaydate);
 }

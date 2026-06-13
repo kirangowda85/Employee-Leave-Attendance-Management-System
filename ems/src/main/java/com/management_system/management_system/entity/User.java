@@ -21,8 +21,8 @@ public class User {
     @NotBlank
    private String username;
     @NotBlank
-   private String password;
-  @NotBlank
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private String password;
   @Email @Column(unique = true)
    private String email;
    @ManyToOne

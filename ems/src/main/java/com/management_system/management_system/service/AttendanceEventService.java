@@ -8,66 +8,59 @@ import com.management_system.management_system.repository.AttendanceEventReposit
 import com.management_system.management_system.repository.EmployeeRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
+@Service
 public class AttendanceEventService {
-    private final AttendanceService attendanceService;
-    private final AttendanceEventRepository attendanceEventRepository;
-    private final EmployeeRepository employeeRepository;
+        private final AttendanceService attendanceService;
+        private final AttendanceEventRepository attendanceEventRepository;
+        private final EmployeeRepository employeeRepository;
 
-    public AttendanceEventService(AttendanceService attendanceService, AttendanceEventRepository attendanceEventRepository, EmployeeRepository employeeRepository) {
-        this.attendanceService = attendanceService;
-        this.attendanceEventRepository = attendanceEventRepository;
-        this.employeeRepository = employeeRepository;
-    }
-
-    public ResponseEntity<ApiResponse> markAttendanceEvent(
-            AttendanceEventDTO dto) {
-
-        Optional<Employee> employee =
-                employeeRepository.findById(
-                        dto.getEmployeeId()
-                );
-
-        if (employee.isEmpty()) {
-
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse(
-                            404,
-                            "Employee not found"
-                    ));
+        public AttendanceEventService(AttendanceService attendanceService,
+                        AttendanceEventRepository attendanceEventRepository, EmployeeRepository employeeRepository) {
+                this.attendanceService = attendanceService;
+                this.attendanceEventRepository = attendanceEventRepository;
+                this.employeeRepository = employeeRepository;
         }
 
-        AttendanceEvent event =
-                new AttendanceEvent();
+        public ResponseEntity<ApiResponse> markAttendanceEvent(
+                        AttendanceEventDTO dto) {
 
-        event.setEmployee(
-                employee.get()
-        );
+                Optional<Employee> employee = employeeRepository.findById(
+                                dto.getEmployeeId());
 
-        event.setEventType(
-                dto.getEventType()
-        );
+                if (employee.isEmpty()) {
 
-        event.setEventTime(
-                LocalDateTime.now()
-        );
+                        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                                        .body(new ApiResponse(
+                                                        404,
+                                                        "Employee not found"));
+                }
 
-        attendanceEventRepository.save(
-                event
-        );
-        attendanceService.calculateDailyAttendance(
-                employee.get().getId(),
-                LocalDate.now()
-        );
+                AttendanceEvent event = new AttendanceEvent();
 
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new ApiResponse(
-                        201,
-                        "Attendance event recorded successfully"
-                ));
-    }
+                event.setEmployee(
+                                employee.get());
+
+                event.setEventType(
+                                dto.getEventType());
+
+                event.setEventTime(
+                                LocalDateTime.now());
+
+                attendanceEventRepository.save(
+                                event);
+                attendanceService.calculateDailyAttendance(
+                                employee.get().getId(),
+                                LocalDate.now());
+
+                return ResponseEntity.status(HttpStatus.CREATED)
+                                .body(new ApiResponse(
+                                                201,
+                                                "Attendance event recorded successfully"));
+        }
 }
